@@ -248,14 +248,13 @@ Work through this checklist in order - each step gates the next:
 - [ ] Smoke test from source: `/usr/bin/python3 -m usage_monitor_for_claude` - tray icon, popup, and settings work
 - [ ] Build: `bash build.sh` - both artifacts appear in `dist/`
 - [ ] Smoke test the `.deb`: install it and verify tray icon, popup, and settings
-- [ ] Commit and push (`main`), then publish:
+- [ ] Commit and push (`main`), then tag - CI does the rest:
 
   ```bash
-  gh release create v<version> dist/*.deb dist/*.tar.gz \
-    --title "v<version>" --notes-file <notes.md>
+  git tag v<version> && git push origin v<version>
   ```
 
-  Release notes lead with the download/install table, then the highlights, then a link to the changelog. Linux artifacts only - Windows users are pointed to the [upstream releases](https://github.com/jens-duttke/usage-monitor-for-claude/releases).
+  The [Release workflow](.github/workflows/release.yml) runs the tests, builds both packages, checks the tag against `__version__`, and publishes the release with install-table notes. Linux artifacts only - Windows users are pointed to the [upstream releases](https://github.com/jens-duttke/usage-monitor-for-claude/releases). To publish manually instead: `gh release create v<version> dist/*.deb dist/*.tar.gz --title "v<version>" --notes-file <notes.md>`.
 
 </details>
 
