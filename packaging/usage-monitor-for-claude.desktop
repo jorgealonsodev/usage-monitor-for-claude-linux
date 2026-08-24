@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Usage Monitor for Claude
+Comment=System tray monitor for Claude usage and quota limits
+Exec=usage-monitor-for-claude
+Icon=usage-monitor-for-claude
+Terminal=false
+Categories=Utility;Monitor;
+StartupNotify=false
+Keywords=Claude;Anthropic;usage;quota;monitor;tray;limits;

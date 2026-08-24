@@ -1,0 +1,49 @@
+#!/bin/sh
+# Usage Monitor for Claude - launcher.
+# Works from both a system install (/usr/bin + /usr/lib/usage-monitor-for-claude)
+# and a user install (~/.local/bin + ~/.local/lib/usage-monitor-for-claude):
+# the application root is resolved relative to this script's real location.
+set -eu
+
+APP=usage-monitor-for-claude
+
+# Resolve the real path of this script (follow symlinks, POSIX-portable).
+SCRIPT=$0
+while [ -h "$SCRIPT" ]; do
+    DIR=$(cd "$(dirname "$SCRIPT")" && pwd -P)
+    LINK=$(readlink "$SCRIPT")
+    case $LINK in
+        /*) SCRIPT=$LINK ;;
+        *)  SCRIPT="$DIR/$LINK" ;;
+    esac
+done
+BIN_DIR=$(cd "$(dirname "$SCRIPT")" && pwd -P)
+PREFIX=$(dirname "$BIN_DIR")
+APP_ROOT="$PREFIX/lib/$APP"
+
+if [ ! -d "$APP_ROOT/usage_monitor_for_claude" ]; then
+    echo "$APP: application files not found at $APP_ROOT" >&2
+    exit 1
+fi
+
+# Prefer a python3 that can import gi (PyGObject). Probe the system interpreter
+# first: pyenv/conda shims on PATH frequently lack the gi bindings.
+PYTHON=
+for candidate in /usr/bin/python3 python3; do
+    if command -v "$candidate" >/dev/null 2>&1 \
+        && "$candidate" -c 'import gi' >/dev/null 2>&1; then
+        PYTHON=$candidate
+        break
+    fi
+done
+
+if [ -z "$PYTHON" ]; then
+    echo "$APP: no python3 with PyGObject (gi) was found." >&2
+    echo "Install the runtime dependencies with:" >&2
+    echo "  sudo apt install python3 python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-ayatanaappindicator3-0.1 gir1.2-notify-0.7 python3-requests python3-pil libxss1 fonts-dejavu-core" >&2
+    exit 1
+fi
+
+PYTHONPATH="$APP_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH
+exec "$PYTHON" -m usage_monitor_for_claude "$@"

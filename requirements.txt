@@ -1,0 +1,12 @@
+# Usage Monitor for Claude - Linux
+#
+# This application has NO pip-installable runtime dependencies.
+# All runtime dependencies are system packages installed via apt
+# (PyGObject/GTK bindings cannot be reliably installed from PyPI):
+#
+#   sudo apt install python3 python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
+#       gir1.2-ayatanaappindicator3-0.1 gir1.2-notify-0.7 \
+#       python3-requests python3-pil libxss1 fonts-dejavu-core
+#
+# Do not `pip install -r requirements.txt` for runtime use; run the app with
+# the system Python: python3 -m usage_monitor_for_claude

@@ -1,0 +1,14 @@
+# Build artifacts
+dist/
+build/
+stage/
+*.deb
+*.tar.gz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
