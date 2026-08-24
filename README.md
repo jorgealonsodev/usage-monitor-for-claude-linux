@@ -6,20 +6,38 @@ A Linux port of [Usage Monitor for Claude](https://github.com/jens-duttke/usage-
 
 ![Detail popup showing account info and usage bars](screenshot.png)
 
+## Quick start
+
+1. Download the `.deb` from [Releases](https://github.com/jorgealonsodev/usage-monitor-for-claude-linux/releases) and install it:
+
+   ```bash
+   sudo apt install ./usage-monitor-for-claude_<version>_all.deb
+   ```
+
+2. Run it (or find **Usage Monitor for Claude** in your application launcher):
+
+   ```bash
+   usage-monitor-for-claude
+   ```
+
+3. A tray icon appears with your live usage. That's it - it authenticates through your existing [Claude Code](https://docs.anthropic.com/en/docs/claude-code) login, no API key needed.
+
+Not on a Debian-family distro, or no sudo? See [Installation](#installation) for the `tar.gz` user-level installer and running from source. Tray icon missing? See [Tray icon not visible?](#tray-icon-not-visible)
+
 ## Features
 
-- **Zero configuration** - authenticates through your existing Claude Code login, no API key or manual token entry needed
-- **Live tray icon** (AppIndicator) with two [configurable](docs/configuration.md#tray-icon-bars) progress bars (session + weekly by default), or both values as stacked percentages via `icon_style`. Plus a [configurable title](docs/configuration.md#tooltip-fields), percentage display, and theme-aware colors for light and dark panels
-- **Detail popup** with account info, reset countdowns, extra usage, and dynamically detected bars for every active quota type (Session, Weekly, Sonnet, Opus, Fable, Cowork, and whatever Anthropic adds next), [selectable per field](docs/configuration.md#popup-fields). A stale-data indicator flags values that may be outdated. Drag it anywhere by its header bar (the position is remembered for the next open) and pin it open to keep usage visible during long sessions - optionally as a [compact view](docs/configuration.md#compact-pinned-view) with only the parts you need. Reset times follow your system locale's clock format
-- **Claude Code versions** - the popup shows which version is installed in each environment (native CLI, VS Code, VS Code Insiders, Cursor, Windsurf), so you can spot when your IDE extension is ahead of or behind the CLI. Installs the app cannot see, such as one inside a container or on another host, are listed alongside the rest via the [`cli_command`](docs/configuration.md#claude-cli-command) setting
-- **Smart alerts** - configurable threshold notifications per quota type, with time-aware mode that only alerts when usage outpaces elapsed time. Reset notifications when a nearly exhausted quota refills. Extra usage can also alert on absolute spending amounts (e.g. $50 / $100 / $150 spent), the only alert available when it has no monthly limit
-- **[Event commands](docs/event-commands.md)** - run a custom shell command when a quota resets, a usage threshold is crossed, the app starts up, or you trigger the double-click command from the tray menu. Send push notifications to your phone, resume an AI agent, start a fresh 5-hour session automatically, play an alert sound, or trigger any custom workflow
-- **Time marker** on every bar, in the popup and on the tray icon alike, showing how much of the current period has elapsed - so you see at a glance whether your usage is ahead of or behind the clock. Bars that outpace it turn red
-- **Automatic token refresh** - when the OAuth session expires, runs `claude update` in the background to renew the token without user intervention. If a CLI update is installed, shows a notification (which you can turn off via the `notify_claude_update` setting)
-- **Adaptive polling** - speeds up during active usage, pauses when the computer is idle (X11) or the session is locked, aligns to imminent quota resets, and backs off on rate-limit errors. Switching your Claude account refreshes the tray immediately, so it never lingers on the previous account's usage
-- **Multi-account** - monitor several Claude accounts side by side: launch one instance per account with `--config-dir="<path>"` pointing at each account's Claude config directory. Each tray icon shows its account's usage, with a `[dir-name]` title prefix and per-instance settings
-- **13 languages** (English, German, French, Spanish, Portuguese, Italian, Japanese, Korean, Hindi, Indonesian, Chinese Simplified, Chinese Traditional, Ukrainian) - auto-detected from your system locale, with optional manual override via the `language` setting
-- **[Customizable](docs/configuration.md)** - optionally override polling intervals, colors, alert thresholds, and more via a JSON settings file
+- **Zero configuration** - authenticates through your existing Claude Code login
+- **Live tray icon** - two [configurable usage bars](docs/configuration.md#tray-icon-bars) or [stacked percentages](docs/configuration.md#tray-icon-bars), theme-aware for light and dark panels, with optional [color levels by usage](docs/configuration.md#tray-icon-color-levels) (traffic-light style)
+- **Detail popup** - account info, reset countdowns, extra usage, and a bar for [every active quota type](docs/configuration.md#popup-fields); drag it by its header (the position is remembered), pin it open, or trim it to a [compact view](docs/configuration.md#compact-pinned-view); optional [bar color levels](docs/configuration.md#popup-bar-color-levels)
+- **Claude Code versions** - shows the installed version per environment (CLI, VS Code, Cursor, Windsurf, [remote installs](docs/configuration.md#claude-cli-command))
+- **Smart alerts** - [per-quota thresholds](docs/configuration.md#alert-thresholds), time-aware mode, reset notifications, and absolute-spend alerts for extra usage
+- **[Event commands](docs/event-commands.md)** - run any shell command on quota reset, threshold crossing, startup, or on demand from the tray menu
+- **Time marker** on every bar - see whether usage is ahead of or behind the clock; bars that outpace it turn red
+- **Automatic token refresh** - renews the OAuth token via `claude update` in the background
+- **Adaptive polling** - faster during active usage, paused when idle or locked, aligned to quota resets
+- **Multi-account** - one instance per account via `--config-dir="<path>"`, each with its own tray icon and settings
+- **13 languages** - auto-detected from your system locale
+- **[Customizable](docs/configuration.md)** - polling, colors, thresholds, fields, and more via one optional JSON file
 
 ## What is different from the Windows original?
 
@@ -27,7 +45,8 @@ The AppIndicator tray protocol has no click events, so the interaction model dif
 
 - **Left-click opens the menu** (there is no click-to-open). **Show Claude Usage** is the first menu entry and also the **middle-click** (secondary activate) action.
 - **There is no double-click gesture.** When `on_double_click_command` is configured, it appears as a dedicated menu entry instead.
-- The popup closes when it loses focus (click anywhere else) or on **Escape**, unless pinned. It opens in the work-area corner nearest the pointer - right after a tray click, that is the corner next to the tray.
+- The popup closes when it loses focus (click anywhere else) or on **Escape**, unless pinned. It opens in the work-area corner nearest the pointer - or at the position you last dragged it to.
+- The popup can be dragged by holding its header bar without pinning it first (upstream gates dragging behind the pin).
 
 Everything else - settings keys, popup, alerts, event commands, languages - behaves exactly like the upstream app.
 
@@ -43,7 +62,7 @@ This tool handles your Claude Code OAuth token, so you should be able to verify 
   - a single-instance lock file (`usage-monitor-for-claude*.lock`) in `$XDG_RUNTIME_DIR` (or `/tmp`)
   - transient tray icon PNGs in a private directory under `$XDG_RUNTIME_DIR` (or `~/.cache`), deleted as they are replaced and removed on exit
   - an XDG autostart entry (`~/.config/autostart/usage-monitor-for-claude*.desktop`) - only if autostart is enabled, removed when disabled
-  - a UI state file (`~/.config/usage-monitor-for-claude/state*.json`) holding only the screen coordinates the popup was last dragged to - written only when you drag the pinned popup
+  - a UI state file (`~/.config/usage-monitor-for-claude/state*.json`) holding only the screen coordinates the popup was last dragged to - written only when you drag the popup
 
   An expired OAuth token additionally triggers `claude update`, which may install a newer Claude Code version. Nothing else on your system is modified
 - **No dynamic code execution** - no `eval()`, `exec()`, `compile()`, or dynamic imports
@@ -110,11 +129,10 @@ Optional flags: `--config-dir="<path>"` (monitor a specific Claude config direct
 |---|---|
 | **Left-click** the tray icon | Opens the menu - **Show Claude Usage** is the first entry |
 | **Middle-click** the tray icon | Opens the detail popup directly (same as **Show Claude Usage**) |
+| **Hold + drag** the popup header | Moves the popup anywhere - the position is remembered for the next open |
 | **Menu → Double-click** | Runs the [`on_double_click_command`](docs/event-commands.md) - the entry only appears when the command is configured |
 | **Other menu entries** | Test event commands, restart, GitHub link, quit |
 | **Escape** or click elsewhere | Closes the detail popup (unless pinned) |
-
-The popup opens in the work-area corner nearest the pointer. Pin it (pin button in the header) to keep it open and drag it anywhere.
 
 ### Tray icon not visible?
 
@@ -219,16 +237,25 @@ Then open <http://localhost:8080/usage_monitor_for_claude/popup/dev.html> in you
 - **`ModuleNotFoundError: No module named 'gi'`** - you are running a pyenv/conda/venv Python. Run with `/usr/bin/python3`, or use the installed `usage-monitor-for-claude` launcher, which picks a `gi`-capable interpreter automatically.
 - **Nothing seems to happen** - run with `--verbose` to see startup diagnostics and polling activity in the terminal.
 
-### Create a release
+### Publish a release
 
-1. Update `__version__` in [`usage_monitor_for_claude/__init__.py`](usage_monitor_for_claude/__init__.py) - packaging reads the version from there at build time
-2. Update `_FALLBACK_USER_AGENT` in [`usage_monitor_for_claude/api.py`](usage_monitor_for_claude/api.py) to the current Claude Code version
-3. In [`CHANGELOG.md`](CHANGELOG.md), add a `## [x.y.z] - YYYY-MM-DD` section describing the release
-4. Run the test suite: `/usr/bin/python3 -m unittest discover -s tests`
-5. Smoke test from source: `/usr/bin/python3 -m usage_monitor_for_claude` - verify tray icon, popup, and settings
-6. Build the packages: `bash build.sh`
-7. Smoke test the `.deb`: install it and verify tray icon, popup, and settings
-8. Commit, tag, push, and publish the `dist/` artifacts as a GitHub release
+Work through this checklist in order - each step gates the next:
+
+- [ ] Update `__version__` in [`usage_monitor_for_claude/__init__.py`](usage_monitor_for_claude/__init__.py) - packaging reads the version from there at build time
+- [ ] Update `_FALLBACK_USER_AGENT` in [`usage_monitor_for_claude/api.py`](usage_monitor_for_claude/api.py) to the current Claude Code version
+- [ ] Add a `## [x.y.z] - YYYY-MM-DD` section to [`CHANGELOG.md`](CHANGELOG.md)
+- [ ] Full test suite green: `/usr/bin/python3 -m unittest discover -s tests`
+- [ ] Smoke test from source: `/usr/bin/python3 -m usage_monitor_for_claude` - tray icon, popup, and settings work
+- [ ] Build: `bash build.sh` - both artifacts appear in `dist/`
+- [ ] Smoke test the `.deb`: install it and verify tray icon, popup, and settings
+- [ ] Commit and push (`main`), then publish:
+
+  ```bash
+  gh release create v<version> dist/*.deb dist/*.tar.gz \
+    --title "v<version>" --notes-file <notes.md>
+  ```
+
+  Release notes lead with the download/install table, then the highlights, then a link to the changelog. Linux artifacts only - Windows users are pointed to the [upstream releases](https://github.com/jens-duttke/usage-monitor-for-claude/releases).
 
 </details>
 
