@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.21.0-linux.1] - 2026-08-24
+## [1.21.0-linux] - 2026-08-24
 
 Linux port of the Windows application by [Jens Duttke](https://github.com/jens-duttke), based on upstream v1.21.0 (plus its then-unreleased fix that limits the double-click command's failure dialog to commands that fail to start). Settings keys, popup behavior, alerts, event commands, and languages are unchanged from upstream; the entries below describe what the port replaces or adds. Entries older than this one document the inherited upstream (Windows) history.
 
