@@ -144,6 +144,37 @@ class TestLauncher(AutostartDirTestCase):
             with patch.object(autostart.sys, 'argv', [str(script)]):
                 self.assertEqual(autostart._launcher(), f'"{script.resolve()}"')
 
+    def test_installed_layout_uses_wrapper_script(self):
+        """A <prefix>/lib/<app> install resolves the <prefix>/bin launcher.
+
+        The .deb and tarball installs run the app as ``python3 -m`` with
+        PYTHONPATH pointing at the application root, so argv[0] is
+        ``__main__.py``.  Storing ``python3 -m`` would drop PYTHONPATH and
+        the autostart entry would fail to import the package.
+        """
+        with TemporaryDirectory() as prefix:
+            app_root = Path(prefix) / 'lib' / autostart.AUTOSTART_BASE_NAME
+            package = app_root / 'usage_monitor_for_claude'
+            package.mkdir(parents=True)
+            wrapper = Path(prefix) / 'bin' / autostart.AUTOSTART_BASE_NAME
+            wrapper.parent.mkdir(parents=True)
+            wrapper.write_text('#!/bin/sh\n', encoding='utf-8')
+            wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR)
+
+            with patch.object(autostart, '__file__', str(package / 'autostart.py')), \
+                 patch.object(autostart.sys, 'argv', [str(package / '__main__.py')]):
+                self.assertEqual(autostart._launcher(), f'"{wrapper.resolve()}"')
+
+    def test_installed_layout_without_wrapper_uses_python_dash_m(self):
+        """Without a sibling bin/ launcher the python -m fallback stands."""
+        with TemporaryDirectory() as prefix:
+            package = Path(prefix) / 'lib' / autostart.AUTOSTART_BASE_NAME / 'usage_monitor_for_claude'
+            package.mkdir(parents=True)
+
+            with patch.object(autostart, '__file__', str(package / 'autostart.py')), \
+                 patch.object(autostart.sys, 'argv', [str(package / '__main__.py')]):
+                self.assertEqual(autostart._launcher(), f'"{sys.executable}" -m usage_monitor_for_claude')
+
     def test_source_run_uses_python_dash_m(self):
         """Running from source (argv[0] is a .py file) stores python -m."""
         with patch.object(autostart.sys, 'argv', ['/somewhere/usage_monitor_for_claude/__main__.py']):

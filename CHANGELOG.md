@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.1-linux] - 2026-08-31
+
+### Fixed
+
+- "Start with system" wrote an autostart entry that could not launch the app. The `.deb` and `tar.gz` packages install the code under `<prefix>/lib/usage-monitor-for-claude` - outside `sys.path` - and start it through the `<prefix>/bin/usage-monitor-for-claude` wrapper, which exports `PYTHONPATH` and picks an interpreter with PyGObject. The autostart entry stored `python3 -m usage_monitor_for_claude` instead of that wrapper, so at login the import failed silently and nothing appeared in the tray. The launcher is now resolved from the package location when `sys.argv[0]` is the package's `__main__.py`; existing broken entries are rewritten on the next start by the autostart self-healing check
+
 ## [1.21.0-linux] - 2026-08-24
 
 Linux port of the Windows application by [Jens Duttke](https://github.com/jens-duttke), based on upstream v1.21.0 (plus its then-unreleased fix that limits the double-click command's failure dialog to commands that fail to start). Settings keys, popup behavior, alerts, event commands, and languages are unchanged from upstream; the entries below describe what the port replaces or adds. Entries older than this one document the inherited upstream (Windows) history.

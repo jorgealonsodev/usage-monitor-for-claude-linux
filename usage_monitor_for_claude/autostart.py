@@ -32,14 +32,42 @@ def autostart_file_path() -> Path:
     return _autostart_dir() / f'{AUTOSTART_BASE_NAME}{config_dir_suffix()}.desktop'
 
 
+def _installed_launcher() -> Path | None:
+    """Return the launcher script of a ``<prefix>/lib/<app>`` install.
+
+    The ``.deb`` and tarball packages place the package under
+    ``<prefix>/lib/usage-monitor-for-claude`` - outside ``sys.path`` - and
+    start it through ``<prefix>/bin/usage-monitor-for-claude``, a shell
+    wrapper that exports ``PYTHONPATH`` and picks an interpreter with
+    PyGObject.  Under that wrapper ``sys.argv[0]`` is the package's
+    ``__main__.py``, so the launcher has to be recovered from the package
+    location instead.
+
+    Returns
+    -------
+    Path or None
+        The wrapper script, or ``None`` when the layout does not match or
+        the script is missing.
+    """
+    app_root = Path(__file__).resolve().parent.parent
+    if app_root.name != AUTOSTART_BASE_NAME or app_root.parent.name != 'lib':
+        return None
+
+    launcher = app_root.parent.parent / 'bin' / AUTOSTART_BASE_NAME
+    if launcher.is_file() and os.access(launcher, os.X_OK):
+        return launcher
+    return None
+
+
 def _launcher() -> str:
     """Return the (quoted) launcher command for this installation.
 
     An installed console script (e.g. ``/usr/bin/usage-monitor-for-claude``)
-    is used directly; running from source (``python3 -m
-    usage_monitor_for_claude``) leaves ``sys.argv[0]`` pointing at the
-    package's ``__main__.py``, in which case the interpreter with ``-m``
-    is stored instead.
+    is used directly, whether it is ``sys.argv[0]`` itself or the wrapper of
+    a ``<prefix>/lib/<app>`` package install.  Running from source
+    (``python3 -m usage_monitor_for_claude``) leaves ``sys.argv[0]`` pointing
+    at the package's ``__main__.py`` with the package already importable, in
+    which case the interpreter with ``-m`` is stored instead.
     """
     if getattr(sys, 'frozen', False):
         return f'"{sys.executable}"'
@@ -49,6 +77,10 @@ def _launcher() -> str:
         launcher = Path(argv0).resolve()
         if launcher.is_file() and os.access(launcher, os.X_OK) and launcher.suffix != '.py':
             return f'"{launcher}"'
+
+    installed = _installed_launcher()
+    if installed is not None:
+        return f'"{installed}"'
 
     return f'"{sys.executable}" -m usage_monitor_for_claude'
 
