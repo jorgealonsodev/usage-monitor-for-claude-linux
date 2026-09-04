@@ -83,6 +83,59 @@ def _read_css_scale() -> float:
     return (xft_dpi / 1024) / 96
 
 
+# Base font size popup.css is written against, CSS pixels.  Keep in sync
+# with the ``font-size`` on ``body`` there - _read_font_zoom scales the
+# whole page by how far the desktop font sits from this baseline.
+_CSS_BASE_FONT_PX = 13
+
+# Bounds for that zoom: a broken or exotic font setting must still leave
+# a popup that can be read and fits on screen.
+_MIN_FONT_ZOOM = 0.5
+_MAX_FONT_ZOOM = 3.0
+
+
+def _read_font_zoom() -> float:
+    """Return the page zoom that matches the desktop font size.
+
+    The DPI and the font size are separate desktop settings (XFCE exposes
+    both), and ``popup.css`` is drawn against ``_CSS_BASE_FONT_PX``, so a
+    larger desktop font would otherwise leave the popup unchanged.  Zooming the whole
+    page - rather than only the font - keeps padding, bars and icons in
+    proportion with the text.
+
+    Returns
+    -------
+    float
+        The zoom factor, clamped to a usable range, or ``1.0`` when the
+        font is unset or unreadable.
+    """
+    if Gtk is None:
+        return 1.0
+    try:
+        settings = Gtk.Settings.get_default()
+        font_name = settings.get_property('gtk-font-name') if settings is not None else None
+    except Exception:
+        return 1.0
+    if not isinstance(font_name, str):
+        return 1.0
+
+    # A Pango font description ends with its size: "Segoe UI 10",
+    # "DejaVu Sans Bold 11.5", or "Sans 16px" for an absolute size.
+    size_token = font_name.strip().rsplit(' ', 1)[-1]
+    absolute = size_token.endswith('px')
+    try:
+        size = float(size_token[:-2] if absolute else size_token)
+    except ValueError:
+        return 1.0
+    if size <= 0:
+        return 1.0
+
+    # Points are 1/72 inch and CSS pixels 1/96; an absolute size is already
+    # in pixels.
+    css_pixels = size if absolute else size * 96 / 72
+    return min(_MAX_FONT_ZOOM, max(_MIN_FONT_ZOOM, css_pixels / _CSS_BASE_FONT_PX))
+
+
 # Bridge methods JavaScript may invoke; anything else is ignored.
 _BRIDGE_METHODS = frozenset({'close', 'open_url', 'set_pinned', 'begin_drag', 'drag', 'end_drag', 'report_height'})
 
@@ -387,9 +440,12 @@ class UsagePopup:
         # spot the user just dragged away from.
         self._last_drag_target: tuple[int, int] | None = None
         self._closed = threading.Event()
-        # Logical pixels per CSS pixel, read once: the desktop DPI does not
-        # change while a popup is open.
-        self._css_scale = _read_css_scale()
+        # Page zoom matching the desktop font size, and the logical pixels
+        # one CSS pixel ends up as.  WebKit folds the zoom into
+        # devicePixelRatio, so both settings travel through one factor.
+        # Read once: neither changes while a popup is open.
+        self._zoom = _read_font_zoom()
+        self._css_scale = _read_css_scale() * self._zoom
         # Serializes the resize/show geometry path.
         self._geometry_lock = threading.Lock()
         # 0 means "no height reported yet": the first ResizeObserver report
@@ -435,6 +491,7 @@ class UsagePopup:
             background = Gdk.RGBA()
             if background.parse(BG):
                 webview.set_background_color(background)
+            webview.set_zoom_level(self._zoom)
             webview.connect('load-changed', self._on_load_changed)
 
             window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)

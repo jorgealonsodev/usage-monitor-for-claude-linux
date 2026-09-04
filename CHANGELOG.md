@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The popup was cut off at the bottom on any desktop whose DPI is not 96, hiding the Claude Code versions and the status footer. WebKit renders one CSS pixel as `devicePixelRatio` physical pixels, and that ratio folds in the desktop's Xft DPI - at 110 dpi the page is 110/96 larger than the CSS numbers its `ResizeObserver` reports. The window was resized straight to that CSS height, so it came out ~13% shorter than the page it had to show. The reported height and the 340 px design width are now converted to logical pixels before they reach GTK, so the popup keeps its proportions at any DPI; the height is also rounded up, since `scrollHeight` rounds to whole pixels and could land just under the real content height
 
+### Changed
+
+- The popup now follows the desktop font size, not just the DPI. The two are separate settings (XFCE exposes a font size and a custom DPI independently) and `popup.css` is written against a fixed 13 px base, so raising the desktop font used to leave the popup untouched. The page is now zoomed by the ratio between the configured font and that baseline, which keeps padding, bars and icons in proportion with the text instead of scaling the type alone; the zoom is clamped to 0.5-3x so an exotic font setting cannot produce an unusable window
+
 ## [1.21.1-linux] - 2026-08-31
 
 ### Fixed

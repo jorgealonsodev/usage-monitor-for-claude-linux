@@ -15,8 +15,8 @@ from unittest.mock import MagicMock, patch
 
 from usage_monitor_for_claude.cache import CacheSnapshot
 from usage_monitor_for_claude.popup import (
-    UsagePopup, _KEY_ESCAPE, _MARGIN, _PopupApi, _init_config, _read_css_scale, _snapshot_to_dict,
-    _usage_entries,
+    UsagePopup, _CSS_BASE_FONT_PX, _KEY_ESCAPE, _MARGIN, _PopupApi, _init_config, _read_css_scale,
+    _read_font_zoom, _snapshot_to_dict, _usage_entries,
 )
 
 
@@ -1454,6 +1454,93 @@ class TestReadCssScale(unittest.TestCase):
         with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
             mock_gtk.Settings.get_default.side_effect = RuntimeError('no display')
             self.assertEqual(_read_css_scale(), 1.0)
+
+
+class TestReadFontZoom(unittest.TestCase):
+    """Tests for _read_font_zoom - following the desktop font size.
+
+    popup.css is written against a 13 px base font.  The desktop font size
+    is a separate setting from the DPI (XFCE exposes both), so a user who
+    raises it must still get a proportionally larger popup: the zoom is
+    the ratio between their font and that 13 px baseline.
+    """
+
+    def _gtk(self, mock_gtk, font_name):
+        settings = MagicMock()
+        settings.get_property.return_value = font_name
+        mock_gtk.Settings.get_default.return_value = settings
+
+    def _zoom(self, font_name):
+        with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
+            self._gtk(mock_gtk, font_name)
+            return _read_font_zoom()
+
+    def test_point_size_becomes_css_pixels(self):
+        """A point is 1/72 inch and a CSS pixel 1/96, so 12 pt is 16 px."""
+        self.assertAlmostEqual(self._zoom('Sans 12'), 16 / _CSS_BASE_FONT_PX)
+
+    def test_baseline_font_is_neutral(self):
+        """The font popup.css was drawn against needs no zoom."""
+        self.assertAlmostEqual(self._zoom(f'Sans {_CSS_BASE_FONT_PX * 72 / 96}'), 1.0)
+
+    def test_style_keywords_are_ignored(self):
+        """Pango font descriptions carry style words before the size."""
+        self.assertAlmostEqual(self._zoom('DejaVu Sans Bold Italic 12'), 16 / _CSS_BASE_FONT_PX)
+
+    def test_fractional_size(self):
+        self.assertAlmostEqual(self._zoom('Cantarell 10.5'), (10.5 * 96 / 72) / _CSS_BASE_FONT_PX)
+
+    def test_absolute_pixel_size(self):
+        """Pango also accepts an absolute size in pixels."""
+        self.assertAlmostEqual(self._zoom('Sans 16px'), 16 / _CSS_BASE_FONT_PX)
+
+    def test_font_without_a_size_is_neutral(self):
+        self.assertEqual(self._zoom('Sans'), 1.0)
+
+    def test_unparsable_font_is_neutral(self):
+        self.assertEqual(self._zoom(''), 1.0)
+        self.assertEqual(self._zoom(None), 1.0)
+
+    def test_absurd_sizes_are_clamped(self):
+        """A broken font setting must not produce an unusable popup."""
+        self.assertEqual(self._zoom('Sans 2'), 0.5)
+        self.assertEqual(self._zoom('Sans 400'), 3.0)
+
+    def test_missing_settings_is_neutral(self):
+        with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
+            mock_gtk.Settings.get_default.return_value = None
+            self.assertEqual(_read_font_zoom(), 1.0)
+
+    def test_missing_gtk_is_neutral(self):
+        with patch('usage_monitor_for_claude.popup.Gtk', None):
+            self.assertEqual(_read_font_zoom(), 1.0)
+
+    def test_settings_failure_is_neutral(self):
+        with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
+            mock_gtk.Settings.get_default.side_effect = RuntimeError('no display')
+            self.assertEqual(_read_font_zoom(), 1.0)
+
+
+class TestCssScaleComposition(unittest.TestCase):
+    """The popup scales with the DPI and with the desktop font size.
+
+    WebKit folds the page zoom into devicePixelRatio, so one CSS pixel
+    becomes ``dpi factor * zoom`` logical pixels and both settings have to
+    reach the window geometry through the same number.
+    """
+
+    def test_scale_multiplies_dpi_by_font_zoom(self):
+        # GLib as None makes __init__ return instead of blocking on the
+        # window it would otherwise build on the main loop.
+        with patch('usage_monitor_for_claude.popup.GLib', None), \
+                patch('usage_monitor_for_claude.popup.state'), \
+                patch('usage_monitor_for_claude.popup._read_css_scale', return_value=1.25), \
+                patch('usage_monitor_for_claude.popup._read_font_zoom', return_value=1.5):
+            popup = object.__new__(UsagePopup)
+            UsagePopup.__init__(popup, MagicMock())
+
+        self.assertEqual(popup._zoom, 1.5)
+        self.assertAlmostEqual(popup._css_scale, 1.25 * 1.5)
 
 
 class TestScaledGeometry(unittest.TestCase):

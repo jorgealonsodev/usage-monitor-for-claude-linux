@@ -5,6 +5,9 @@ body {
     background: var(--bg);
     color: var(--fg);
     font-family: system-ui, sans-serif;
+    /* Baseline every size below is drawn against.  popup.py mirrors it as
+       _CSS_BASE_FONT_PX and zooms the page by how far the desktop font
+       sits from it - change one and the other has to follow. */
     font-size: 13px;
     line-height: 1.3;
     display: flex;
