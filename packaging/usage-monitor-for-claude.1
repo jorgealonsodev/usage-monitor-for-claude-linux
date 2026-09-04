@@ -1,0 +1,95 @@
+.TH USAGE-MONITOR-FOR-CLAUDE 1 "" "" "User Commands"
+.SH NAME
+usage-monitor-for-claude \- system tray monitor for Claude usage and quota limits
+.SH SYNOPSIS
+.B usage-monitor-for-claude
+.RI [ --config-dir " " PATH ]
+.RI [ --verbose ]
+.SH DESCRIPTION
+.B usage-monitor-for-claude
+puts an icon in the system tray showing how much of your Claude session and
+weekly quotas is left. The icon carries the first quota's percentage over two
+progress bars; clicking it opens a popup with the account, every configured
+quota, and the installed Claude Code versions.
+.PP
+Usage is read through the credentials of a logged-in Claude Code installation,
+so no separate sign-in is needed. Rate limits are shared across claude.ai,
+Claude Code and the IDE extensions, so the figures cover all of them.
+.PP
+Only one instance runs per Claude configuration directory; starting a second
+one for the same directory raises the popup of the running instance instead.
+.SH OPTIONS
+.TP
+.BI --config-dir " PATH"
+Monitor the Claude account configured in
+.IR PATH
+instead of the default
+.IR ~/.claude .
+Both
+.BI --config-dir= PATH
+and
+.BI "--config-dir " PATH
+are accepted;
+.IR ~
+and environment variables are expanded. Each configuration directory gets its
+own settings, state and tray instance, so several accounts can be monitored at
+once. The program exits with status 1 if the directory does not exist.
+.TP
+.B --verbose
+Print startup diagnostics - resolved paths, settings source and detected Claude
+installations - to standard output.
+.SH FILES
+.TP
+.I ~/.claude/usage-monitor-settings.json
+Optional settings file. It is never created automatically; see the
+.B CONFIGURATION
+section for the full search order.
+.TP
+.I ~/.config/usage-monitor-for-claude/state.json
+Saved popup position and other persisted state. A non-default
+.B --config-dir
+adds a suffix to the file name.
+.TP
+.I ~/.config/autostart/usage-monitor-for-claude.desktop
+Written when "Start with system" is enabled from the tray menu.
+.SH CONFIGURATION
+The first of these that exists is used:
+.IP 1. 4
+.IR $CLAUDE_CONFIG_DIR/usage-monitor-settings.json ,
+when that variable is set and differs from
+.IR ~/.claude .
+.IP 2. 4
+Next to the program, for tarball and portable installs.
+.IP 3. 4
+.I usage-monitor-settings.json
+under
+.IR $XDG_CONFIG_HOME/usage-monitor-for-claude ,
+by default
+.IR ~/.config/usage-monitor-for-claude .
+.IP 4. 4
+.IR ~/.claude/usage-monitor-settings.json .
+.PP
+Every user-tunable constant can be overridden there: polling intervals, colors,
+which quotas the icon and popup show, alert thresholds, event commands and the
+interface language. The settings reference lists them all.
+.SH ENVIRONMENT
+.TP
+.B CLAUDE_CONFIG_DIR
+Claude configuration directory to read credentials and usage from.
+.B --config-dir
+sets this for the process when given.
+.SH EXIT STATUS
+.TP
+.B 0
+Normal termination.
+.TP
+.B 1
+The directory passed to
+.B --config-dir
+does not exist.
+.SH SEE ALSO
+Settings reference and full documentation:
+.UR https://github.com/jorgealonsodev/usage-monitor-for-claude-linux
+.UE
+.SH AUTHOR
+Linux port by J. Alonso, from the Windows application by Jens Duttke.

@@ -13,6 +13,7 @@ for size in 16 24 32 48 64 128 256; do
     rm -f "$PREFIX/share/icons/hicolor/${size}x${size}/apps/$APP.png"
 done
 rm -rf "$PREFIX/share/doc/$APP"
+rm -f "$PREFIX/share/man/man1/$APP.1.gz"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database -q "$PREFIX/share/applications" 2>/dev/null || true

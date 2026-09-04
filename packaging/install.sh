@@ -86,6 +86,7 @@ echo "  Application: $PREFIX/lib/$APP"
 echo "  Launcher:    $PREFIX/bin/$APP"
 echo "  Desktop:     $PREFIX/share/applications/$APP.desktop"
 echo "  Icons:       $PREFIX/share/icons/hicolor/*/apps/$APP.png"
+echo "  Man page:    $PREFIX/share/man/man1/$APP.1.gz"
 echo ""
 echo "Run it with: $APP"
 case ":${PATH}:" in

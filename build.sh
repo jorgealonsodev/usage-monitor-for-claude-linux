@@ -22,6 +22,11 @@ if [ -z "$VERSION" ]; then
 fi
 echo "Building $APP $VERSION"
 
+MAINTAINER="J. Alonso <desarrollos@enfoquestic.com>"
+# RFC 5322 build date; honours SOURCE_DATE_EPOCH so a reproducible build
+# gets a stable changelog entry.
+BUILD_DATE="$(date -R ${SOURCE_DATE_EPOCH:+-d "@$SOURCE_DATE_EPOCH"})"
+
 DIST="$ROOT/dist"
 mkdir -p "$DIST"
 
@@ -62,9 +67,15 @@ for size in 16 24 32 48 64 128 256; do
         "$PAYLOAD/share/icons/hicolor/${size}x${size}/apps/$APP.png"
 done
 
-# Docs: upstream MIT LICENSE and a Debian machine-readable copyright file
-# generated from it at build time.
+# Man page.
+gzip -9nc "$ROOT/packaging/$APP.1" > "$STAGE/$APP.1.gz"
+install -Dm644 "$STAGE/$APP.1.gz" "$PAYLOAD/share/man/man1/$APP.1.gz"
+
+# Docs: upstream MIT LICENSE, the project changelog, and a Debian
+# machine-readable copyright file generated from the license at build time.
 install -Dm644 "$ROOT/LICENSE" "$PAYLOAD/share/doc/$APP/LICENSE"
+gzip -9nc "$ROOT/CHANGELOG.md" > "$STAGE/changelog.gz"
+install -Dm644 "$STAGE/changelog.gz" "$PAYLOAD/share/doc/$APP/changelog.gz"
 {
     echo "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/"
     echo "Upstream-Name: Usage Monitor for Claude"
@@ -73,7 +84,7 @@ install -Dm644 "$ROOT/LICENSE" "$PAYLOAD/share/doc/$APP/LICENSE"
     echo ""
     echo "Files: *"
     echo "Copyright: 2026 Jens Duttke"
-    echo "           2026 J. Alonso <desarrollos@enfoquestic.com> (Linux port)"
+    echo "           2026 $MAINTAINER (Linux port)"
     echo "License: MIT"
     sed -e 's/^$/./' -e 's/^/ /' "$ROOT/LICENSE"
 } > "$PAYLOAD/share/doc/$APP/copyright"
@@ -86,6 +97,18 @@ DEBROOT="$STAGE/deb"
 mkdir -p "$DEBROOT/DEBIAN" "$DEBROOT/usr"
 cp -R "$PAYLOAD/." "$DEBROOT/usr/"
 
+# Debian changelog - required for a non-native package, and Debian-only,
+# so it is written here rather than into the shared payload.
+{
+    echo "$APP ($VERSION) unstable; urgency=medium"
+    echo ""
+    echo "  * Release $VERSION.  See changelog.gz in this directory for the"
+    echo "    full list of changes."
+    echo ""
+    echo " -- $MAINTAINER  $BUILD_DATE"
+} | gzip -9nc > "$DEBROOT/usr/share/doc/$APP/changelog.Debian.gz"
+chmod 644 "$DEBROOT/usr/share/doc/$APP/changelog.Debian.gz"
+
 # Normalize directory permissions (mktemp roots are group-writable).
 find "$STAGE" -type d -exec chmod 755 {} +
 
@@ -95,7 +118,7 @@ cat > "$DEBROOT/DEBIAN/control" <<EOF
 Package: $APP
 Version: $VERSION
 Architecture: all
-Maintainer: J. Alonso <desarrollos@enfoquestic.com>
+Maintainer: $MAINTAINER
 Installed-Size: $INSTALLED_SIZE
 Depends: $DEPENDS
 Section: utils
