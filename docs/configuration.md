@@ -152,6 +152,7 @@ The tray icon displays two small progress bars. By default, these show the sessi
 |-----|---------|-------------|
 | `icon_fields` | `["five_hour", "seven_day"]` | Which two usage fields to show as icon bars. The first entry is the top bar (also determines the icon text), the second is the bottom bar |
 | `icon_style` | `"number+bars"` | Icon layout: `"number+bars"` shows the first field's percentage above two progress bars; `"numbers"` shows both fields as two stacked percentages without bars |
+| `icon_margin` | `10` | Transparent margin around the icon, percent of the icon size per side (0-25). Drawn edge to edge the icon runs into its neighbours in the panel; raise this if your tray packs icons tightly, or set `0` for the edge-to-edge icon |
 
 Must be an array of exactly 2 non-empty strings. Unknown field names are accepted - if a field is `null` or missing from the API response, the bar shows 0%.
 

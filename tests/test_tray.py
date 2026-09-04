@@ -281,6 +281,34 @@ class TestIconRefresh(_TrayTestCase):
 # Menu mapping
 # ---------------------------------------------------------------------------
 
+class TestIconMarginApplied(_TrayTestCase):
+    """The panel gets the padded icon; callers still see what they set.
+
+    AppIndicator renders whatever PNG it is handed, so the margin that
+    keeps the icon off its neighbours has to be applied on the way to
+    disk - without rewriting the image the application is holding.
+    """
+
+    def test_written_icon_is_padded(self):
+        tray = TrayIcon('usage_monitor')
+
+        with patch.object(tray_mod.tray_icon, 'ICON_MARGIN', 25):
+            tray.icon = Image.new('RGBA', (64, 64), (255, 0, 0, 255))
+        written = Image.open(self.indicator.set_icon_full.call_args[0][0])
+
+        self.assertEqual(written.getbbox(), (16, 16, 48, 48))
+
+    def test_stored_icon_is_the_original(self):
+        """The margin is presentation - tray.icon returns what was assigned."""
+        tray = TrayIcon('usage_monitor')
+        image = Image.new('RGBA', (64, 64), (255, 0, 0, 255))
+
+        with patch.object(tray_mod.tray_icon, 'ICON_MARGIN', 25):
+            tray.icon = image
+
+        self.assertIs(tray.icon, image)
+
+
 class TestMenuMapping(_TrayTestCase):
     """Tests for mapping the MenuItem structure onto GTK menu widgets."""
 

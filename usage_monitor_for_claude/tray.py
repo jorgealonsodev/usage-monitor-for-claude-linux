@@ -20,7 +20,7 @@ import tempfile
 import threading
 from typing import Any, Callable
 
-from . import notifications
+from . import notifications, tray_icon
 
 __all__ = ['SEPARATOR', 'MenuItem', 'TrayIcon']
 
@@ -132,7 +132,9 @@ class TrayIcon:
         with self._icon_lock:
             self._icon_serial += 1
             path = os.path.join(self._icon_dir, f'icon-{self._icon_serial}.png')
-            image.save(path, format='PNG')
+            # The margin is presentation: only what the panel renders is
+            # padded, so callers keep the image they assigned.
+            tray_icon.add_icon_margin(image).save(path, format='PNG')
             previous, self._icon_path = self._icon_path, path
         self._on_main(self._apply_icon, path, previous)
 

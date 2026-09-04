@@ -113,6 +113,60 @@ class TestOverageBarEndState(unittest.TestCase):
         self.assertEqual(img.getpixel((48, 4)), self._FG_HALF)
 
 
+class TestAddIconMargin(unittest.TestCase):
+    """Tests for the transparent margin around the finished tray icon.
+
+    The icon is drawn edge to edge, so in the panel its bars run into the
+    neighbouring tray icons and read as one continuous strip.  The margin
+    is presentation, not drawing: it insets the finished image, leaving
+    the icon geometry and its colors exactly as create_icon_image made
+    them.
+    """
+
+    def _margin_px(self, percent):
+        return round(tray_icon_mod.ICON_SIZE * percent / 100)
+
+    def _opaque(self):
+        """A fully painted canvas - any inset shows up as a transparent frame."""
+        return Image.new('RGBA', (tray_icon_mod.ICON_SIZE, tray_icon_mod.ICON_SIZE), (255, 0, 0, 255))
+
+    def test_content_is_inset_on_every_side(self):
+        with patch.object(tray_icon_mod, 'ICON_MARGIN', 10):
+            bbox = tray_icon_mod.add_icon_margin(self._opaque()).getbbox()
+
+        margin = self._margin_px(10)
+        self.assertEqual(bbox, (margin, margin, tray_icon_mod.ICON_SIZE - margin, tray_icon_mod.ICON_SIZE - margin))
+
+    def test_canvas_size_is_unchanged(self):
+        """The margin insets the drawing, it does not grow the canvas."""
+        with patch.object(tray_icon_mod, 'ICON_MARGIN', 10):
+            framed = tray_icon_mod.add_icon_margin(self._opaque())
+
+        self.assertEqual(framed.size, (tray_icon_mod.ICON_SIZE, tray_icon_mod.ICON_SIZE))
+
+    def test_zero_margin_returns_the_image_untouched(self):
+        """Zero restores the edge-to-edge icon with no resampling at all."""
+        original = self._opaque()
+        with patch.object(tray_icon_mod, 'ICON_MARGIN', 0):
+            self.assertIs(tray_icon_mod.add_icon_margin(original), original)
+
+    def test_larger_margin_leaves_less_content(self):
+        with patch.object(tray_icon_mod, 'ICON_MARGIN', 20):
+            wide = tray_icon_mod.add_icon_margin(self._opaque()).getbbox()
+        with patch.object(tray_icon_mod, 'ICON_MARGIN', 5):
+            narrow = tray_icon_mod.add_icon_margin(self._opaque()).getbbox()
+
+        self.assertGreater(wide[0], narrow[0])
+
+    def test_drawn_icon_keeps_its_shape_inside_the_frame(self):
+        """A real icon still fills the inset box edge to edge."""
+        with patch.object(tray_icon_mod, 'ICON_MARGIN', 10):
+            bbox = tray_icon_mod.add_icon_margin(tray_icon_mod.create_icon_image(6, 3)).getbbox()
+
+        margin = self._margin_px(10)
+        self.assertEqual(bbox, (margin, margin, tray_icon_mod.ICON_SIZE - margin, tray_icon_mod.ICON_SIZE - margin))
+
+
 class TestIconGlyphNearExhaustion(unittest.TestCase):
     """Tests for the percentage glyph just below 100% utilization."""
 

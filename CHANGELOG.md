@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.3-linux] - 2026-09-04
+
+### Fixed
+
+- The tray icon was drawn edge to edge, so its progress bars ran straight into the neighbouring tray icons and the row read as one continuous strip. The finished icon is now inset by a transparent margin before it is handed to the panel, which is where other tray icons get their breathing room. The margin is presentation only - the drawing geometry and colors are untouched - and it is configurable through the new `icon_margin` setting (percent of the icon size per side, `0` restores the edge-to-edge icon)
+
 ## [1.21.2-linux] - 2026-09-04
 
 ### Fixed

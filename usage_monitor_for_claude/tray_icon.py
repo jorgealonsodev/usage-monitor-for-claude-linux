@@ -12,9 +12,10 @@ from typing import Callable
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .settings import ICON_COLOR_LEVELS, ICON_DARK, ICON_LIGHT, ICON_STYLE
+from .settings import ICON_COLOR_LEVELS, ICON_DARK, ICON_LIGHT, ICON_MARGIN, ICON_STYLE
 
-__all__ = ['load_font', 'taskbar_uses_light_theme', 'watch_theme_change', 'create_icon_image', 'create_status_image']
+__all__ = ['load_font', 'taskbar_uses_light_theme', 'watch_theme_change', 'create_icon_image',
+           'create_status_image', 'add_icon_margin']
 
 TRANSPARENT = (0, 0, 0, 0)
 
@@ -41,6 +42,29 @@ MARKER_WIDTH = 4
 
 # Row height for the 'numbers' icon style - two rows split the canvas evenly.
 NUMBER_ROW_HEIGHT = 32
+
+
+def add_icon_margin(img: Image.Image) -> Image.Image:
+    """Return *img* inset by ``ICON_MARGIN`` percent on every side.
+
+    The icon is drawn edge to edge, so in the panel its bars run straight
+    into the neighbouring tray icons and read as one continuous strip.
+    This is presentation rather than drawing: the finished image is
+    shrunk into a transparent frame, which keeps glyph, bars and marker
+    in proportion and leaves ``create_icon_image``'s geometry and exact
+    colors alone.  The panel scales the icon down anyway, so the extra
+    resample costs nothing visible.
+
+    A margin of zero returns the original image untouched.
+    """
+    margin = round(ICON_SIZE * ICON_MARGIN / 100)
+    if margin <= 0:
+        return img
+
+    inner = max(1, ICON_SIZE - 2 * margin)
+    framed = Image.new('RGBA', (ICON_SIZE, ICON_SIZE), TRANSPARENT)
+    framed.paste(img.resize((inner, inner), Image.LANCZOS), (margin, margin))
+    return framed
 
 
 def _fc_match(pattern: str) -> str | None:

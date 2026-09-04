@@ -33,7 +33,8 @@ __all__ = [
     'BAR_BG', 'BAR_COLOR_LEVELS', 'BAR_DIVIDER', 'BAR_FG', 'BAR_FG_WARN', 'BAR_MARKER', 'BG',
     'CLI_COMMAND', 'COMPACT_HIDE', 'CURRENCY_SYMBOL',
     'FG', 'FG_DIM', 'FG_HEADING', 'FG_LINK',
-    'ICON_COLOR_LEVELS', 'ICON_DARK', 'ICON_FIELDS', 'ICON_LIGHT', 'ICON_STYLE', 'IDLE_PAUSE',
+    'ICON_COLOR_LEVELS', 'ICON_DARK', 'ICON_FIELDS', 'ICON_LIGHT', 'ICON_MARGIN', 'ICON_STYLE',
+    'IDLE_PAUSE',
     'LANGUAGE', 'MAX_BACKOFF', 'NOTIFY_CLAUDE_UPDATE',
     'ON_DOUBLE_CLICK_COMMAND', 'ON_RESET_COMMAND', 'ON_STARTUP_COMMAND', 'ON_THRESHOLD_COMMAND',
     'POLL_ERROR', 'POLL_FAST', 'POLL_FAST_EXTRA', 'POLL_INTERVAL',
@@ -58,6 +59,9 @@ _PERCENT_KEYS = frozenset({'alert_time_aware_below'})
 _STRING_KEYS = frozenset({'currency_symbol', 'language'})
 _VALID_TIME_FORMATS = frozenset({'24h', '12h'})
 _VALID_ICON_STYLES = frozenset({'number+bars', 'numbers'})
+# Largest icon margin, percent of the icon size per side.  Past this the
+# glyph has no room left to stay readable in the tray.
+_MAX_ICON_MARGIN = 25
 _COMMAND_KEYS = frozenset({'on_double_click_command', 'on_reset_command', 'on_startup_command', 'on_threshold_command'})
 _BOOL_KEYS = frozenset({'alert_time_aware', 'notify_claude_update'})
 _STRING_LIST_KEYS = frozenset({'tooltip_fields', 'compact_hide'})
@@ -215,6 +219,14 @@ def _validate(data: dict, path: Path) -> dict:
         elif key == 'time_format':
             if value not in _VALID_TIME_FORMATS:
                 errors.append(f'  {key}: must be "24h" or "12h", got {value!r}')
+                drop.append(key)
+
+        elif key == 'icon_margin':
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                errors.append(f'  {key}: expected a number, got {type(value).__name__}')
+                drop.append(key)
+            elif not (0 <= value <= _MAX_ICON_MARGIN):
+                errors.append(f'  {key}: must be between 0 and {_MAX_ICON_MARGIN}, got {value}')
                 drop.append(key)
 
         elif key == 'icon_style':
@@ -447,6 +459,11 @@ ICON_FIELDS: list[str] = _S.get('icon_fields', ['five_hour', 'seven_day'])
 # Tray icon layout: 'number+bars' shows the top field's percentage above two
 # usage bars, 'numbers' shows both fields as two stacked percentages
 ICON_STYLE: str = _S.get('icon_style', 'number+bars')
+
+# Transparent margin around the tray icon, percent of the icon size per
+# side.  Drawn edge to edge the bars run into the neighbouring tray icons
+# and read as one continuous strip.
+ICON_MARGIN: float = _S.get('icon_margin', 10)
 
 # Tooltip fields
 TOOLTIP_FIELDS: list[str] = _S.get('tooltip_fields', ['five_hour', 'seven_day'])

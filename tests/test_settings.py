@@ -483,6 +483,39 @@ class TestSettingsValidation(unittest.TestCase):
         result, _ = self._run_validate({'time_format': 24})
         self.assertNotIn('time_format', result)
 
+    # icon_margin validation
+
+    def test_icon_margin_valid_percentage(self):
+        """A margin inside the allowed range passes through unchanged."""
+        result, mock = self._run_validate({'icon_margin': 12})
+        self.assertEqual(result['icon_margin'], 12)
+        mock.show_error.assert_not_called()
+
+    def test_icon_margin_zero_valid(self):
+        """Zero is a valid margin - it restores the edge-to-edge icon."""
+        result, mock = self._run_validate({'icon_margin': 0})
+        self.assertEqual(result['icon_margin'], 0)
+        mock.show_error.assert_not_called()
+
+    def test_icon_margin_above_range_dropped(self):
+        """A margin that would leave no room for the glyph is rejected."""
+        result, mock = self._run_validate({'icon_margin': 40})
+        self.assertNotIn('icon_margin', result)
+        mock.show_error.assert_called_once()
+
+    def test_icon_margin_negative_dropped(self):
+        result, _ = self._run_validate({'icon_margin': -5})
+        self.assertNotIn('icon_margin', result)
+
+    def test_icon_margin_non_number_dropped(self):
+        result, _ = self._run_validate({'icon_margin': 'wide'})
+        self.assertNotIn('icon_margin', result)
+
+    def test_icon_margin_bool_dropped(self):
+        """bool is an int subclass - it must not slip through as 0/1."""
+        result, _ = self._run_validate({'icon_margin': True})
+        self.assertNotIn('icon_margin', result)
+
     # icon_style validation
 
     def test_icon_style_number_bars_valid(self):
