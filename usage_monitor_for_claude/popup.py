@@ -17,6 +17,7 @@ dragging behind the pin).
 from __future__ import annotations
 
 import json
+import math
 import threading
 import time
 import webbrowser
@@ -51,6 +52,36 @@ _KEY_ESCAPE = 0xFF1B
 
 # Margin between the popup and the work-area edges, logical pixels.
 _MARGIN = 12
+
+
+def _read_css_scale() -> float:
+    """Return how many logical pixels WebKit renders one CSS pixel as.
+
+    WebKit sizes a CSS pixel by ``window.devicePixelRatio``, which is the
+    monitor's GDK scale factor multiplied by the desktop's Xft DPI over 96
+    (a 110 dpi desktop renders at 110/96).  ``Gtk.Window.resize`` works in
+    logical pixels, which already carry the GDK scale factor, so only the
+    DPI part is left to apply - without it the window is sized in CSS
+    pixels and ends up shorter than the page it has to show.
+
+    Returns
+    -------
+    float
+        The factor, or ``1.0`` when the DPI is unset or unreadable
+        (headless import, no display yet, 96 dpi desktop).
+    """
+    if Gtk is None:
+        return 1.0
+    try:
+        settings = Gtk.Settings.get_default()
+        xft_dpi = settings.get_property('gtk-xft-dpi') if settings is not None else -1
+    except Exception:
+        return 1.0
+    # gtk-xft-dpi is the DPI in 1024ths, and -1 when the desktop sets none.
+    if not isinstance(xft_dpi, int) or xft_dpi <= 0:
+        return 1.0
+    return (xft_dpi / 1024) / 96
+
 
 # Bridge methods JavaScript may invoke; anything else is ignored.
 _BRIDGE_METHODS = frozenset({'close', 'open_url', 'set_pinned', 'begin_drag', 'drag', 'end_drag', 'report_height'})
@@ -292,6 +323,10 @@ class _PopupApi:
     def report_height(self, height: int) -> None:
         """Called by JS ResizeObserver when content height changes.
 
+        ``height`` is in CSS pixels; it is converted to the logical pixels
+        GTK sizes windows in before any geometry work, so everything below
+        this point speaks a single unit.
+
         Bridge calls are serialized on the GTK main loop in production,
         but the geometry lock still guards the whole check-resize-show
         sequence so the contract (no interleaved stale resize, single
@@ -301,11 +336,12 @@ class _PopupApi:
             return
 
         popup = self._popup
+        window_height = popup._to_window_pixels(height)
         with popup._geometry_lock:
-            if height == popup._last_height:
+            if window_height == popup._last_height:
                 return
-            popup._last_height = height
-            popup._resize_and_position(height)
+            popup._last_height = window_height
+            popup._resize_and_position(window_height)
             if not popup._shown:
                 popup._show_window()
 
@@ -317,6 +353,8 @@ class _PopupApi:
 class UsagePopup:
     """Dark-themed HTML popup window showing account info and usage bars."""
 
+    # Design width and placeholder height, both in CSS pixels - see
+    # _to_window_pixels for the conversion to the logical pixels GTK uses.
     WIDTH = 340
     _CHECK_MS = 2000
     _INITIAL_HEIGHT = 400
@@ -349,6 +387,9 @@ class UsagePopup:
         # spot the user just dragged away from.
         self._last_drag_target: tuple[int, int] | None = None
         self._closed = threading.Event()
+        # Logical pixels per CSS pixel, read once: the desktop DPI does not
+        # change while a popup is open.
+        self._css_scale = _read_css_scale()
         # Serializes the resize/show geometry path.
         self._geometry_lock = threading.Lock()
         # 0 means "no height reported yet": the first ResizeObserver report
@@ -402,7 +443,7 @@ class UsagePopup:
             window.set_skip_pager_hint(True)
             window.set_keep_above(True)
             window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
-            window.set_default_size(self.WIDTH, self._INITIAL_HEIGHT)
+            window.set_default_size(self._window_width(), self._to_window_pixels(self._INITIAL_HEIGHT))
             window.add(webview)
             window.connect('focus-out-event', self._on_focus_out)
             window.connect('key-press-event', self._on_key_press)
@@ -677,13 +718,26 @@ class UsagePopup:
             int(max(area_y, min(y, area_y + area_h - height))),
         )
 
+    def _to_window_pixels(self, css_pixels: int) -> int:
+        """Convert a CSS-pixel length into the logical pixels GTK sizes in.
+
+        Rounded up: a window one pixel short of its content clips the last
+        row of text, while one pixel of spare space is invisible.
+        """
+        return max(1, math.ceil(css_pixels * self._css_scale))
+
+    def _window_width(self) -> int:
+        """Return the popup width in logical pixels."""
+        return self._to_window_pixels(self.WIDTH)
+
     def _resize_and_position(self, height: int) -> None:
         """Resize the window and reposition it near the system tray.
 
+        *height* is already in logical pixels - the CSS height reported by
+        JavaScript is converted in ``_PopupApi.report_height``.
+
         The first call happens while the window is still invisible
         (opacity 0), so separate resize/move calls cause no visible jump.
-        GTK on X11 works in logical pixels throughout - no DPI scaling
-        is applied here.
 
         The first placement prefers the position saved when a previous
         popup was dragged, clamped into its monitor's work area; a saved
@@ -695,12 +749,13 @@ class UsagePopup:
         snapping to a corner; the corner placement keeps its existing
         per-report behavior.
         """
-        self._window.resize(self.WIDTH, height)
+        width = self._window_width()
+        self._window.resize(width, height)
         if self._moved_by_drag:
             return
 
         if not self._shown and self._saved_position is not None:
-            placed = self._clamp_into_workarea(*self._saved_position, self.WIDTH, height)
+            placed = self._clamp_into_workarea(*self._saved_position, width, height)
             if placed is not None:
                 self._restored = True
                 self._window.move(*placed)
@@ -714,12 +769,12 @@ class UsagePopup:
                 x, y = self._window.get_position()
             except Exception:
                 return
-            clamped = self._clamp_into_workarea(x, y, self.WIDTH, height)
+            clamped = self._clamp_into_workarea(x, y, width, height)
             if clamped is not None and clamped != (x, y):
                 self._window.move(*clamped)
             return
 
-        x, y = self._tray_position(self.WIDTH, height)
+        x, y = self._tray_position(width, height)
         self._window.move(x, y)
 
     def _show_window(self) -> None:

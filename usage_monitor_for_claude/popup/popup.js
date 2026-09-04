@@ -443,8 +443,11 @@ function updateBarElement(div, entry) {
 }
 
 // Report content height changes to the host (pywebview or dev.html iframe parent).
+// scrollHeight is rounded to whole pixels, so it can land just under the real
+// content height and clip the last row; the bounding rect keeps the fraction.
 new ResizeObserver(() => {
-    const height = document.body.scrollHeight;
+    const body = document.body;
+    const height = Math.ceil(Math.max(body.scrollHeight, body.getBoundingClientRect().height));
     if (window.pywebview?.api?.report_height) {
         pywebview.api.report_height(height);
     }

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.2-linux] - 2026-09-04
+
+### Fixed
+
+- The popup was cut off at the bottom on any desktop whose DPI is not 96, hiding the Claude Code versions and the status footer. WebKit renders one CSS pixel as `devicePixelRatio` physical pixels, and that ratio folds in the desktop's Xft DPI - at 110 dpi the page is 110/96 larger than the CSS numbers its `ResizeObserver` reports. The window was resized straight to that CSS height, so it came out ~13% shorter than the page it had to show. The reported height and the 340 px design width are now converted to logical pixels before they reach GTK, so the popup keeps its proportions at any DPI; the height is also rounded up, since `scrollHeight` rounds to whole pixels and could land just under the real content height
+
 ## [1.21.1-linux] - 2026-08-31
 
 ### Fixed

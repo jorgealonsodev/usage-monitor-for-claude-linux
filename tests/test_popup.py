@@ -15,7 +15,8 @@ from unittest.mock import MagicMock, patch
 
 from usage_monitor_for_claude.cache import CacheSnapshot
 from usage_monitor_for_claude.popup import (
-    UsagePopup, _KEY_ESCAPE, _MARGIN, _PopupApi, _init_config, _snapshot_to_dict, _usage_entries,
+    UsagePopup, _KEY_ESCAPE, _MARGIN, _PopupApi, _init_config, _read_css_scale, _snapshot_to_dict,
+    _usage_entries,
 )
 
 
@@ -906,6 +907,7 @@ class TestReportHeight(unittest.TestCase):
         api = popup._api
         self.addCleanup(popup._closed.set)
 
+        popup._css_scale = 1.0
         popup._resize_and_position = MagicMock()
         popup._show_window = MagicMock()
         return popup, api
@@ -1027,6 +1029,7 @@ class TestBridgeContract(unittest.TestCase):
         popup = object.__new__(UsagePopup)
         popup._pinned = False
         popup._moved_by_drag = False
+        popup._css_scale = 1.0
         popup._window = MagicMock()
         popup._webview = MagicMock()
         popup._api = _PopupApi(popup)
@@ -1353,12 +1356,13 @@ class TestResizeAndPosition(unittest.TestCase):
         popup._shown = False
         popup._saved_position = None
         popup._restored = False
+        popup._css_scale = 1.0
         popup._window = MagicMock()
         popup._pointer_and_workarea = MagicMock(return_value=((1900, 1030), (0, 0, 1920, 1040)))
         return popup
 
     def test_resize_uses_logical_pixels(self):
-        """GTK coordinates are logical pixels - the CSS height is used directly."""
+        """At 96 dpi one CSS pixel is one logical pixel - the height passes through."""
         popup = self._popup()
         popup._resize_and_position(500)
         popup._window.resize.assert_called_once_with(340, 500)
@@ -1398,6 +1402,137 @@ class TestResizeAndPosition(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# CSS pixel scale (Xft DPI)
+# ---------------------------------------------------------------------------
+
+class TestReadCssScale(unittest.TestCase):
+    """Tests for _read_css_scale - the CSS pixel to logical pixel factor.
+
+    WebKit renders one CSS pixel as ``devicePixelRatio`` physical pixels,
+    and that ratio is the monitor's GDK scale factor multiplied by the
+    desktop's Xft DPI over 96 (a 110 dpi desktop renders at 110/96).
+    ``Gtk.Window.resize`` works in logical pixels, which already carry the
+    GDK scale factor, so only the DPI part belongs here.
+    """
+
+    def _settings(self, xft_dpi):
+        settings = MagicMock()
+        settings.get_property.return_value = xft_dpi
+        return settings
+
+    def test_follows_xft_dpi(self):
+        """A 110 dpi desktop renders CSS pixels 110/96 larger."""
+        with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
+            mock_gtk.Settings.get_default.return_value = self._settings(110 * 1024)
+            self.assertAlmostEqual(_read_css_scale(), 110 / 96)
+
+    def test_default_dpi_is_neutral(self):
+        """At 96 dpi one CSS pixel is one logical pixel."""
+        with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
+            mock_gtk.Settings.get_default.return_value = self._settings(96 * 1024)
+            self.assertEqual(_read_css_scale(), 1.0)
+
+    def test_unset_xft_dpi_is_neutral(self):
+        """gtk-xft-dpi is -1 when the desktop sets no DPI - fall back to 96."""
+        with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
+            mock_gtk.Settings.get_default.return_value = self._settings(-1)
+            self.assertEqual(_read_css_scale(), 1.0)
+
+    def test_missing_settings_is_neutral(self):
+        """No default settings (no display yet) must not break sizing."""
+        with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
+            mock_gtk.Settings.get_default.return_value = None
+            self.assertEqual(_read_css_scale(), 1.0)
+
+    def test_missing_gtk_is_neutral(self):
+        """A headless import leaves Gtk as None."""
+        with patch('usage_monitor_for_claude.popup.Gtk', None):
+            self.assertEqual(_read_css_scale(), 1.0)
+
+    def test_settings_failure_is_neutral(self):
+        """A failing settings lookup must not stop the popup from opening."""
+        with patch('usage_monitor_for_claude.popup.Gtk') as mock_gtk:
+            mock_gtk.Settings.get_default.side_effect = RuntimeError('no display')
+            self.assertEqual(_read_css_scale(), 1.0)
+
+
+class TestScaledGeometry(unittest.TestCase):
+    """Tests that the reported CSS height reaches GTK as logical pixels.
+
+    A height passed through unscaled makes the window shorter than its own
+    content on every desktop whose DPI is not 96, clipping the last rows.
+    """
+
+    _SCALE = 110 / 96
+
+    def _popup(self, scale):
+        popup = object.__new__(UsagePopup)
+        popup._pinned = False
+        popup._moved_by_drag = False
+        popup._shown = True
+        popup._saved_position = None
+        popup._restored = False
+        popup._css_scale = scale
+        popup._last_height = 0
+        popup._geometry_lock = threading.Lock()
+        popup._window = MagicMock()
+        popup._pointer_and_workarea = MagicMock(return_value=((1900, 1030), (0, 0, 1920, 1040)))
+        popup._api = _PopupApi(popup)
+        return popup
+
+    def test_reported_height_is_scaled_for_gtk(self):
+        """529 CSS pixels are 607 logical pixels on a 110 dpi desktop."""
+        popup = self._popup(self._SCALE)
+
+        popup._api.report_height(529)
+
+        self.assertEqual(popup._window.resize.call_args[0][1], 607)
+
+    def test_scaled_height_is_rounded_up(self):
+        """Rounding down would clip the last row - always round up."""
+        popup = self._popup(self._SCALE)
+
+        popup._api.report_height(100)
+
+        # 100 * 110/96 = 114.58
+        self.assertEqual(popup._window.resize.call_args[0][1], 115)
+
+    def test_width_is_scaled_too(self):
+        """The 340 CSS pixel design width must keep its proportions at any DPI."""
+        popup = self._popup(self._SCALE)
+
+        popup._api.report_height(529)
+
+        # 340 * 110/96 = 389.58
+        self.assertEqual(popup._window.resize.call_args[0][0], 390)
+
+    def test_deduplication_compares_logical_pixels(self):
+        """A repeated report still resizes only once after scaling."""
+        popup = self._popup(self._SCALE)
+
+        popup._api.report_height(529)
+        popup._api.report_height(529)
+
+        popup._window.resize.assert_called_once()
+
+    def test_position_accounts_for_the_scaled_size(self):
+        """The tray corner placement must use the scaled window box."""
+        popup = self._popup(self._SCALE)
+
+        popup._api.report_height(529)
+
+        self.assertEqual(popup._window.move.call_args[0], (1920 - 390 - _MARGIN, 1040 - 607 - _MARGIN))
+
+    def test_neutral_scale_leaves_the_height_untouched(self):
+        """At 96 dpi nothing changes - the reported height is used as-is."""
+        popup = self._popup(1.0)
+
+        popup._api.report_height(529)
+
+        popup._window.resize.assert_called_once_with(340, 529)
+
+
+# ---------------------------------------------------------------------------
 # Saved popup position (restore on open, anchored growth)
 # ---------------------------------------------------------------------------
 
@@ -1420,6 +1555,7 @@ class TestSavedPositionRestore(unittest.TestCase):
         popup._shown = shown
         popup._saved_position = saved
         popup._restored = restored
+        popup._css_scale = 1.0
         popup._window = MagicMock()
         popup._pointer_and_workarea = MagicMock(return_value=((1900, 1030), self._WORKAREA))
         popup._monitor_workareas = MagicMock(return_value=workareas if workareas is not None else [self._WORKAREA])
