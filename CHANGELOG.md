@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.4-linux] - 2026-09-04
+
+### Added
+
+- A man page: `man usage-monitor-for-claude` covers both command-line options, the settings search order and the files the app writes
+- The `.deb` now carries the changelogs the archive expects, so `apt changelog usage-monitor-for-claude` works
+
+### Fixed
+
+- The desktop entry declared `Utility;Monitor;`, but `Monitor` is an additional category that needs `System` or `Network` beside it. It is now `System;Monitor;`, which also keeps a single main category so the launcher cannot appear twice in the application menu
+- `uninstall.sh` removes the man page it installs, instead of leaving it behind
+
 ## [1.21.3-linux] - 2026-09-04
 
 ### Fixed
